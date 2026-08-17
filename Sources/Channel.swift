@@ -2,10 +2,18 @@ import Foundation
 
 struct ChannelData: Codable {
     var slots: [String: SlotEntry]
+    var versions: [String: String]?
+    var publish: PublishData?
 }
 
 struct SlotEntry: Codable {
     let id: String
+    let timestamp: String
+}
+
+struct PublishData: Codable {
+    let id: String
+    let tools: [String: String]
     let timestamp: String
 }
 
@@ -36,7 +44,7 @@ enum Channel {
     // MARK: - Remote channel
 
     static func create() throws -> String {
-        let empty = ChannelData(slots: [:])
+        let empty = ChannelData(slots: [:], versions: [:], publish: nil)
         let json = String(data: try JSONEncoder().encode(empty), encoding: .utf8)!
         let id = try JsonEditorAPI.create(name: "b2c-gsync.channel", content: json)
         try writeLocal(id)
@@ -55,23 +63,43 @@ enum Channel {
         return channel
     }
 
-    static func updateSlot(_ slot: String, id: String) throws {
+    static func writeRemote(_ channel: ChannelData) throws {
         guard let channelId = readLocal() else {
             throw JCloudError.noChannel
         }
+        let json = String(data: try JSONEncoder().encode(channel), encoding: .utf8)!
+        try JsonEditorAPI.update(id: channelId, content: json)
+    }
 
+    static func updateSlot(_ slot: String, id: String, toolName: String? = nil, toolVersion: String? = nil, extraVersions: [String: String]? = nil) throws {
         var channel: ChannelData
         do {
             channel = try readRemote()
         } catch {
-            channel = ChannelData(slots: [:])
+            channel = ChannelData(slots: [:], versions: [:], publish: nil)
         }
 
         let formatter = ISO8601DateFormatter()
         channel.slots[slot] = SlotEntry(id: id, timestamp: formatter.string(from: Date()))
 
-        let json = String(data: try JSONEncoder().encode(channel), encoding: .utf8)!
-        try JsonEditorAPI.update(id: channelId, content: json)
+        // Update versions
+        if channel.versions == nil { channel.versions = [:] }
+        if let name = toolName, let ver = toolVersion {
+            let current = channel.versions?[name]
+            if current == nil || compareVersions(ver, isGreaterThan: current!) {
+                channel.versions?[name] = ver
+            }
+        }
+        if let extras = extraVersions {
+            for (name, ver) in extras {
+                let current = channel.versions?[name]
+                if current == nil || compareVersions(ver, isGreaterThan: current!) {
+                    channel.versions?[name] = ver
+                }
+            }
+        }
+
+        try writeRemote(channel)
     }
 
     static func getSlot(_ slot: String) throws -> String {
@@ -80,5 +108,38 @@ enum Channel {
             throw JCloudError.noSlotInChannel(slot)
         }
         return entry.id
+    }
+
+    // MARK: - Version comparison
+
+    static func compareVersions(_ a: String, isGreaterThan b: String) -> Bool {
+        let aParts = a.split(separator: ".").compactMap { Int($0) }
+        let bParts = b.split(separator: ".").compactMap { Int($0) }
+        let count = max(aParts.count, bParts.count)
+        for i in 0..<count {
+            let aVal = i < aParts.count ? aParts[i] : 0
+            let bVal = i < bParts.count ? bParts[i] : 0
+            if aVal > bVal { return true }
+            if aVal < bVal { return false }
+        }
+        return false
+    }
+
+    static func checkTools(_ toolSpecs: String, channelVersions: [String: String]) -> [(String, String, String)] {
+        var outdated: [(String, String, String)] = [] // (name, local, remote)
+
+        let pairs = toolSpecs.split(separator: ",")
+        for pair in pairs {
+            let parts = pair.split(separator: ":", maxSplits: 1)
+            guard parts.count == 2 else { continue }
+            let name = String(parts[0])
+            let localVer = String(parts[1])
+            if let remoteVer = channelVersions[name],
+               compareVersions(remoteVer, isGreaterThan: localVer) {
+                outdated.append((name, localVer, remoteVer))
+            }
+        }
+
+        return outdated
     }
 }

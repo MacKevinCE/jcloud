@@ -17,12 +17,22 @@ func printUsage() {
       jcloud channel slot-get <slot>        Get slot value from channel
       jcloud channel slot-set <slot> <id>   Set slot value in channel
 
+      jcloud publish <tool1> [tool2] ...    Upload binaries to channel
+      jcloud update                         Download and install updated binaries
+
+    Flags for slot-set:
+      --tool <name>           Tool name to track version
+      --tool-version <ver>    Tool version to record
+
+    Flags for slot-get:
+      --check-tools <n:v,...>  Check tool versions against channel
+
     Flags:
       -v, --version      Show version
     """)
 }
 
-let version = "1.0.0"
+let version = "1.1.0"
 
 guard CommandLine.arguments.count >= 2 else {
     printUsage()
@@ -47,6 +57,8 @@ for arg in CommandLine.arguments.dropFirst() {
             commands=(
                 'doc:Document operations (create/read/update/delete)'
                 'channel:Channel management (create/set/show/clear/slot-get/slot-set)'
+                'publish:Upload binaries to channel'
+                'update:Download and install updated binaries'
             )
             _arguments -C \\
                 '(-v --version)'{-v,--version}'[Show version]' \\
@@ -87,6 +99,9 @@ for arg in CommandLine.arguments.dropFirst() {
                                 subcmd) _describe 'channel command' ch_commands ;;
                             esac
                             ;;
+                        publish)
+                            _arguments '*:tool name:(b2c gsync jcloud)'
+                            ;;
                     esac
                     ;;
             esac
@@ -99,6 +114,14 @@ for arg in CommandLine.arguments.dropFirst() {
 
 let command = CommandLine.arguments[1]
 let args = Array(CommandLine.arguments.dropFirst(2))
+
+// Helper to extract flag value from args
+func flagValue(_ flag: String, in arguments: [String]) -> String? {
+    guard let idx = arguments.firstIndex(of: flag), idx + 1 < arguments.count else {
+        return nil
+    }
+    return arguments[idx + 1]
+}
 
 do {
     switch command {
@@ -172,20 +195,59 @@ do {
             guard args.count >= 2 else {
                 throw JCloudError.missingArgument("Usage: jcloud channel slot-get <slot>")
             }
-            let value = try Channel.getSlot(args[1])
-            print(value)
+            // Read channel once for both slot value and version check
+            let channel = try Channel.readRemote()
+            guard let entry = channel.slots[args[1]] else {
+                throw JCloudError.noSlotInChannel(args[1])
+            }
+            print(entry.id)
+
+            // Check tool versions if requested
+            if let checkSpec = flagValue("--check-tools", in: args) {
+                let channelVersions = channel.versions ?? [:]
+
+                var fullSpec = checkSpec
+                fullSpec += ",jcloud:\(version)"
+
+                let outdated = Channel.checkTools(fullSpec, channelVersions: channelVersions)
+                if !outdated.isEmpty {
+                    let toolNames = outdated.map { $0.0 }.joined(separator: " ")
+                    fputs("\n⚠ Outdated tools:\n", stderr)
+                    for (name, local, remote) in outdated {
+                        fputs("  \(name)  local: \(local)  channel: \(remote)\n", stderr)
+                    }
+                    fputs("On the other machine run: jcloud publish \(toolNames)\n", stderr)
+                    fputs("Then on this machine run: jcloud update\n", stderr)
+                }
+            }
 
         case "slot-set":
             guard args.count >= 3 else {
                 throw JCloudError.missingArgument("Usage: jcloud channel slot-set <slot> <id>")
             }
-            try Channel.updateSlot(args[1], id: args[2])
+            let toolName = flagValue("--tool", in: args)
+            let toolVersion = flagValue("--tool-version", in: args)
+
+            try Channel.updateSlot(
+                args[1], id: args[2],
+                toolName: toolName, toolVersion: toolVersion,
+                extraVersions: ["jcloud": version]
+            )
             print("Slot '\(args[1])' updated.")
 
         default:
             printUsage()
             exit(1)
         }
+
+    case "publish":
+        guard !args.isEmpty else {
+            throw JCloudError.missingArgument("Usage: jcloud publish <tool1> [tool2] ...")
+        }
+        try PublishCommand.run(tools: Array(args))
+
+    case "update":
+        try UpdateCommand.run()
 
     default:
         printUsage()

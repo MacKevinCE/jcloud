@@ -8,6 +8,8 @@ enum JCloudError: Error, LocalizedError {
     case invalidChannel
     case noSlotInChannel(String)
     case missingArgument(String)
+    case toolNotFound(String)
+    case commandFailed(String)
 
     var errorDescription: String? {
         switch self {
@@ -25,6 +27,10 @@ enum JCloudError: Error, LocalizedError {
             return "No '\(slot)' entry in channel. The other machine hasn't run that command yet."
         case .missingArgument(let arg):
             return "Missing argument: \(arg)"
+        case .toolNotFound(let tool):
+            return "Binary not found: /usr/local/bin/\(tool)"
+        case .commandFailed(let msg):
+            return msg
         }
     }
 }

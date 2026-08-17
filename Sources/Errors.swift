@@ -28,7 +28,7 @@ enum JCloudError: Error, LocalizedError {
         case .missingArgument(let arg):
             return "Missing argument: \(arg)"
         case .toolNotFound(let tool):
-            return "Binary not found: /usr/local/bin/\(tool)"
+            return "Binary not found in PATH: \(tool)"
         case .commandFailed(let msg):
             return msg
         }

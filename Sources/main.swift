@@ -32,7 +32,7 @@ func printUsage() {
     """)
 }
 
-let version = "1.1.0"
+let version = "1.2.0"
 
 guard CommandLine.arguments.count >= 2 else {
     printUsage()

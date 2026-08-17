@@ -36,6 +36,13 @@ enum UpdateCommand {
         print("\nDownloading...")
         _ = try Shell.run("b2c", ["download", publish.id, "-o", tempDir])
 
+        // Resolve install paths: use existing location or jcloud's own directory
+        let fallbackDir = Shell.jcloudBinDir()
+        var installPaths: [String: String] = [:]
+        for (tool, _, _) in toUpdate {
+            installPaths[tool] = Shell.which(tool) ?? "\(fallbackDir)/\(tool)"
+        }
+
         // Find and install binaries
         let fm = FileManager.default
         let toolNames = Set(toUpdate.map { $0.0 })
@@ -48,15 +55,15 @@ enum UpdateCommand {
             if isDir.boolValue { continue }
 
             let fileName = URL(fileURLWithPath: file).lastPathComponent
-            guard toolNames.contains(fileName) else { continue }
+            guard toolNames.contains(fileName),
+                  let destPath = installPaths[fileName] else { continue }
 
-            let destPath = "/usr/local/bin/\(fileName)"
             if fm.fileExists(atPath: destPath) {
                 try fm.removeItem(atPath: destPath)
             }
             try fm.copyItem(atPath: fullPath, toPath: destPath)
             try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: destPath)
-            print("  Installed: \(fileName)")
+            print("  Installed: \(destPath)")
         }
 
         print("\nDone!")

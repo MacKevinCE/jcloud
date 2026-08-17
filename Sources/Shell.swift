@@ -33,6 +33,16 @@ enum Shell {
         return parts.count >= 2 ? String(parts.last!) : nil
     }
 
+    static func which(_ tool: String) -> String? {
+        guard let output = try? run("which", [tool]) else { return nil }
+        return output.isEmpty ? nil : output
+    }
+
+    static func jcloudBinDir() -> String {
+        let path = CommandLine.arguments[0]
+        return URL(fileURLWithPath: path).deletingLastPathComponent().path
+    }
+
     static func extractId(from output: String) -> String {
         output.components(separatedBy: "\n")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }

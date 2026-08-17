@@ -5,15 +5,16 @@ enum PublishCommand {
     static func run(tools: [String]) throws {
         // Verify all binaries exist and get versions
         var toolVersions: [String: String] = [:]
+        var toolPaths: [String: String] = [:]
 
         for tool in tools {
-            let path = "/usr/local/bin/\(tool)"
-            guard FileManager.default.fileExists(atPath: path) else {
+            guard let path = Shell.which(tool) else {
                 throw JCloudError.toolNotFound(tool)
             }
             guard let ver = Shell.extractVersion(from: tool) else {
                 throw JCloudError.commandFailed("Could not get version for \(tool)")
             }
+            toolPaths[tool] = path
             toolVersions[tool] = ver
         }
 
@@ -22,9 +23,9 @@ enum PublishCommand {
         try FileManager.default.createDirectory(atPath: tempDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
-        for tool in tools {
+        for (tool, path) in toolPaths {
             try FileManager.default.copyItem(
-                atPath: "/usr/local/bin/\(tool)",
+                atPath: path,
                 toPath: "\(tempDir)/\(tool)"
             )
         }

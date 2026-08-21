@@ -265,6 +265,18 @@ jcloud publish b2c gsync jcloud
 jcloud update
 ```
 
+## Reintentos automáticos
+
+Todas las operaciones de API incluyen reintentos automáticos con backoff exponencial:
+
+- Hasta 3 intentos por operación
+- Delays de 1s, 3s y 9s entre reintentos
+- Errores de red y respuestas 5xx se reintentan automáticamente
+- Errores 4xx (cliente) **no** se reintentan, excepto 429 (rate limit)
+- Los reintentos se muestran en stderr: `Retry 1/2 in 1s...`
+
+Esto beneficia automáticamente a todos los consumidores (b2c, gsync) sin cambios en su código.
+
 ## Limitaciones
 
 - **API de terceros**: jsoneditoronline.org es un servicio gratuito con límites diarios de uso. Evitá operaciones innecesarias.

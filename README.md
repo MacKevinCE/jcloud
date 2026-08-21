@@ -53,7 +53,7 @@ Verificá la instalación:
 
 ```bash
 jcloud --version
-# jcloud 1.2.0
+# jcloud 1.3.0
 ```
 
 ## Uso
@@ -136,6 +136,23 @@ Then on this machine run: jcloud update
 ```
 
 > **Nota:** `jcloud` agrega automáticamente su propia versión al check, no hace falta incluirlo en `--check-tools`.
+
+### Backup y restore del canal
+
+Exportar e importar los datos del canal para respaldo o migración.
+
+```bash
+# Exportar a archivo
+jcloud backup canal_backup.json
+
+# Exportar a stdout (útil para pipes)
+jcloud backup
+
+# Importar desde archivo
+jcloud restore canal_backup.json
+```
+
+`backup` exporta el contenido completo del canal (todos los slots y metadatos) a un archivo JSON o a stdout. `restore` importa los datos desde un archivo, sobreescribiendo el contenido actual del canal.
 
 ### Publicar binarios
 

@@ -216,8 +216,8 @@ do {
                     for (name, local, remote) in outdated {
                         fputs("  \(name)  local: \(local)  channel: \(remote)\n", stderr)
                     }
-                    fputs("On the other machine run: jcloud publish \(toolNames)\n", stderr)
-                    fputs("Then on this machine run: jcloud update\n", stderr)
+                    fputs("On the other machine run: seed publish \(toolNames)\n", stderr)
+                    fputs("Then on this machine run: seed update\n", stderr)
                 }
             }
 

@@ -8,7 +8,6 @@ CLI para interactuar con la API de [jsoneditoronline.org](https://jsoneditoronli
 
 - **Operaciones CRUD sobre documentos** — crear, leer, actualizar y eliminar documentos JSON almacenados en la nube.
 - **Sistema de canales** — un documento JSON compartido que actúa como punto de encuentro entre máquinas para intercambiar IDs de documentos automáticamente.
-- **Distribución de binarios** — publicar y actualizar herramientas CLI entre máquinas sin necesidad de compartir código fuente.
 - **Tracking de versiones** — cada operación registra la versión de la herramienta que la ejecutó, permitiendo detectar herramientas desactualizadas.
 
 ### ¿Por qué existe?
@@ -131,8 +130,8 @@ Si alguna herramienta está desactualizada, se muestra una advertencia en stderr
 ```
 ⚠ Outdated tools:
   b2c  local: 1.2.0  channel: 1.3.0
-On the other machine run: jcloud publish b2c
-Then on this machine run: jcloud update
+On the other machine run: seed publish b2c
+Then on this machine run: seed update
 ```
 
 > **Nota:** `jcloud` agrega automáticamente su propia versión al check, no hace falta incluirlo en `--check-tools`.
@@ -154,52 +153,7 @@ jcloud restore canal_backup.json
 
 `backup` exporta el contenido completo del canal (todos los slots y metadatos) a un archivo JSON o a stdout. `restore` importa los datos desde un archivo, sobreescribiendo el contenido actual del canal.
 
-### Publicar binarios
-
-Sube los binarios de las herramientas especificadas al canal para que otra máquina pueda descargarlos.
-
-```bash
-# Publicar una herramienta
-jcloud publish b2c
-
-# Publicar varias a la vez
-jcloud publish b2c gsync jcloud
-```
-
-Esto:
-1. Busca cada binario en tu `PATH` (usando `which`)
-2. Obtiene la versión de cada uno (`<herramienta> --version`)
-3. Los sube como un bundle usando `b2c upload`
-4. Actualiza el canal con el ID del bundle y las versiones
-
-> **Requisito:** `b2c` debe estar instalado y en el `PATH` para que `publish` funcione.
-
-### Actualizar binarios
-
-Descarga e instala las versiones más nuevas de las herramientas desde el canal.
-
-```bash
-jcloud update
-```
-
-Esto:
-1. Lee el canal y compara versiones locales con las publicadas
-2. Si hay actualizaciones, descarga el bundle con `b2c download`
-3. Instala cada binario en su ubicación actual (detectada con `which`) o en el mismo directorio donde está `jcloud`
-
-```
-Updates available:
-  gsync  1.6.0 → 1.6.2
-  b2c    1.2.0 → 1.3.0
-
-Downloading...
-  Installed: /Users/usuario/.local/bin/gsync
-  Installed: /Users/usuario/.local/bin/b2c
-
-Done!
-  gsync v1.6.2
-  b2c v1.3.0
-```
+> **Nota:** Los comandos `publish` y `update` se migraron a [`seed`](../seed/). Usar `seed publish` y `seed update`.
 
 ## Autocompletado (zsh)
 
@@ -225,8 +179,6 @@ jcloud/
     ├── main.swift             # Punto de entrada, routing de comandos
     ├── JsonEditorAPI.swift     # Cliente HTTP para la API de jsoneditoronline.org
     ├── Channel.swift           # Lógica de canales (local + remoto)
-    ├── PublishCommand.swift    # Comando publish
-    ├── UpdateCommand.swift     # Comando update
     ├── Shell.swift             # Helpers para ejecutar procesos
     └── Errors.swift           # Tipos de error
 ```
@@ -238,10 +190,6 @@ jcloud/
 - **`JsonEditorAPI.swift`** — Cliente HTTP sincrónico para la API REST de jsoneditoronline.org. Soporta los métodos `POST` (crear), `GET` (leer), `PUT` (actualizar) y `DELETE` (eliminar). Usa `DispatchSemaphore` para bloquear hasta recibir la respuesta.
 
 - **`Channel.swift`** — Gestión del canal compartido. Maneja la configuración local (`~/.config/b2c-gsync/channel`) y las operaciones remotas (leer/escribir el documento del canal). Incluye comparación semántica de versiones y detección de herramientas desactualizadas.
-
-- **`PublishCommand.swift`** — Localiza binarios en el `PATH`, obtiene sus versiones, los empaqueta y sube usando `b2c`, y actualiza el canal con la información del bundle.
-
-- **`UpdateCommand.swift`** — Lee las versiones publicadas en el canal, las compara con las locales, descarga el bundle y reemplaza los binarios desactualizados en su ubicación detectada.
 
 - **`Shell.swift`** — Utilidades para ejecutar procesos externos (`/usr/bin/env`), extraer versiones de herramientas, buscar binarios con `which`, y obtener el directorio del binario actual.
 
@@ -276,10 +224,10 @@ b2c download -o ./destino
 
 ```bash
 # Máquina A: publicar versiones nuevas
-jcloud publish b2c gsync jcloud
+seed publish b2c gsync jcloud
 
 # Máquina B: descargar e instalar actualizaciones
-jcloud update
+seed update
 ```
 
 ## Reintentos automáticos
@@ -299,4 +247,4 @@ Esto beneficia automáticamente a todos los consumidores (b2c, gsync) sin cambio
 - **API de terceros**: jsoneditoronline.org es un servicio gratuito con límites diarios de uso. Evitá operaciones innecesarias.
 - **Tamaño máximo por documento**: ~1023 KB.
 - **Sin autenticación**: la API no requiere login, los documentos son accesibles por cualquiera que tenga el ID. No almacenes información sensible.
-- **Arquitectura**: `publish`/`update` asume que ambas máquinas usan la misma arquitectura (ej. ambas Apple Silicon o ambas Intel).
+- **Arquitectura**: `publish`/`update` (via `seed`) asume que ambas máquinas usan la misma arquitectura (ej. ambas Apple Silicon o ambas Intel).

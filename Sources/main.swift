@@ -20,6 +20,9 @@ func printUsage() {
       jcloud publish <tool1> [tool2] ...    Upload binaries to channel
       jcloud update                         Download and install updated binaries
 
+      jcloud backup [file]                  Export channel data to file (default: stdout)
+      jcloud restore <file>                 Import channel data from file
+
     Flags for slot-set:
       --tool <name>           Tool name to track version
       --tool-version <ver>    Tool version to record
@@ -248,6 +251,34 @@ do {
 
     case "update":
         try UpdateCommand.run()
+
+    case "backup":
+        let channel = try Channel.readRemote()
+        guard let json = String(data: try JSONEncoder().encode(channel), encoding: .utf8) else {
+            throw JCloudError.invalidResponse
+        }
+        if !args.isEmpty {
+            try json.write(toFile: args[0], atomically: true, encoding: .utf8)
+            print("Channel backed up to: \(args[0])")
+        } else {
+            print(json)
+        }
+
+    case "restore":
+        guard !args.isEmpty else {
+            throw JCloudError.missingArgument("Usage: jcloud restore <file>")
+        }
+        let content = try String(contentsOfFile: args[0], encoding: .utf8)
+        // Validate JSON
+        guard let data = content.data(using: .utf8),
+              let _ = try? JSONDecoder().decode(ChannelData.self, from: data) else {
+            throw JCloudError.invalidChannel
+        }
+        guard let channelId = Channel.readLocal() else {
+            throw JCloudError.noChannel
+        }
+        try JsonEditorAPI.update(id: channelId, content: content)
+        print("Channel restored from: \(args[0])")
 
     default:
         printUsage()

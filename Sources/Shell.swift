@@ -30,7 +30,7 @@ enum Shell {
         guard let output = try? run(tool, ["--version"]) else { return nil }
         // Output format: "tool 1.2.3"
         let parts = output.split(separator: " ")
-        return parts.count >= 2 ? String(parts.last!) : nil
+        return parts.last.map(String.init)
     }
 
     static func which(_ tool: String) -> String? {

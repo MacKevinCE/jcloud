@@ -45,7 +45,9 @@ enum Channel {
 
     static func create() throws -> String {
         let empty = ChannelData(slots: [:], versions: [:], publish: nil)
-        let json = String(data: try JSONEncoder().encode(empty), encoding: .utf8)!
+        guard let json = String(data: try JSONEncoder().encode(empty), encoding: .utf8) else {
+            throw JCloudError.invalidResponse
+        }
         let id = try JsonEditorAPI.create(name: "b2c-gsync.channel", content: json)
         try writeLocal(id)
         return id
@@ -67,7 +69,9 @@ enum Channel {
         guard let channelId = readLocal() else {
             throw JCloudError.noChannel
         }
-        let json = String(data: try JSONEncoder().encode(channel), encoding: .utf8)!
+        guard let json = String(data: try JSONEncoder().encode(channel), encoding: .utf8) else {
+            throw JCloudError.invalidResponse
+        }
         try JsonEditorAPI.update(id: channelId, content: json)
     }
 
@@ -85,15 +89,21 @@ enum Channel {
         // Update versions
         if channel.versions == nil { channel.versions = [:] }
         if let name = toolName, let ver = toolVersion {
-            let current = channel.versions?[name]
-            if current == nil || compareVersions(ver, isGreaterThan: current!) {
+            if let current = channel.versions?[name] {
+                if compareVersions(ver, isGreaterThan: current) {
+                    channel.versions?[name] = ver
+                }
+            } else {
                 channel.versions?[name] = ver
             }
         }
         if let extras = extraVersions {
             for (name, ver) in extras {
-                let current = channel.versions?[name]
-                if current == nil || compareVersions(ver, isGreaterThan: current!) {
+                if let current = channel.versions?[name] {
+                    if compareVersions(ver, isGreaterThan: current) {
+                        channel.versions?[name] = ver
+                    }
+                } else {
                     channel.versions?[name] = ver
                 }
             }

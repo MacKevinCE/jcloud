@@ -18,51 +18,57 @@ enum PublishCommand {
             toolVersions[tool] = ver
         }
 
-        // Create temp dir with binaries
-        let tempDir = "\(NSTemporaryDirectory())jcloud_publish_\(UUID().uuidString)"
-        try FileManager.default.createDirectory(atPath: tempDir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(atPath: tempDir) }
-
-        for (tool, path) in toolPaths {
-            try FileManager.default.copyItem(
-                atPath: path,
-                toPath: "\(tempDir)/\(tool)"
-            )
-        }
-
-        print("Uploading \(tools.count) binary(ies)...")
-        let output = try Shell.run("b2c", ["upload", tempDir, "-y", "--no-channel"])
-        let indexId = Shell.extractId(from: output)
-
-        guard !indexId.isEmpty else {
-            throw JCloudError.commandFailed("Failed to get upload ID from b2c")
-        }
-
-        // Update channel
+        // Read current channel
         var channel: ChannelData
         do {
             channel = try Channel.readRemote()
         } catch {
-            channel = ChannelData(slots: [:], versions: [:], publish: nil)
+            channel = ChannelData(slots: [:], versions: [:], publish: nil, publishTools: [:])
         }
 
-        let formatter = ISO8601DateFormatter()
-        channel.publish = PublishData(
-            id: indexId,
-            tools: toolVersions,
-            timestamp: formatter.string(from: Date())
-        )
-
+        if channel.publishTools == nil { channel.publishTools = [:] }
         if channel.versions == nil { channel.versions = [:] }
-        for (tool, ver) in toolVersions {
+
+        let formatter = ISO8601DateFormatter()
+        let timestamp = formatter.string(from: Date())
+
+        // Publish each tool individually
+        print("Uploading \(tools.count) binary(ies)...")
+        for tool in tools.sorted() {
+            guard let path = toolPaths[tool], let ver = toolVersions[tool] else { continue }
+
+            // Create temp dir with single binary
+            let tempDir = "\(NSTemporaryDirectory())jcloud_pub_\(tool)_\(UUID().uuidString)"
+            try FileManager.default.createDirectory(atPath: tempDir, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(atPath: tempDir) }
+
+            try FileManager.default.copyItem(atPath: path, toPath: "\(tempDir)/\(tool)")
+
+            // Reuse previous ID if available
+            var reuseArgs: [String] = []
+            if let existing = channel.publishTools?[tool] {
+                reuseArgs = ["--reuse", existing.id]
+            }
+
+            let output = try Shell.run("b2c", ["upload", tempDir, "-y", "--no-channel"] + reuseArgs)
+            let indexId = Shell.extractId(from: output)
+
+            guard !indexId.isEmpty else {
+                throw JCloudError.commandFailed("Failed to get upload ID for \(tool)")
+            }
+
+            channel.publishTools?[tool] = ToolPublishEntry(id: indexId, version: ver, timestamp: timestamp)
             channel.versions?[tool] = ver
+            print("  \(tool) v\(ver) → \(indexId)")
         }
 
         try Channel.writeRemote(channel)
 
         print("\nPublished:")
-        for (tool, ver) in toolVersions.sorted(by: { $0.key < $1.key }) {
-            print("  \(tool) v\(ver)")
+        for tool in tools.sorted() {
+            if let ver = toolVersions[tool] {
+                print("  \(tool) v\(ver)")
+            }
         }
         print("\nOn the other machine, run: jcloud update")
     }

@@ -4,6 +4,7 @@ struct ChannelData: Codable {
     var slots: [String: SlotEntry]
     var versions: [String: String]?
     var publish: PublishData?
+    var publishTools: [String: ToolPublishEntry]?
 }
 
 struct SlotEntry: Codable {
@@ -14,6 +15,12 @@ struct SlotEntry: Codable {
 struct PublishData: Codable {
     let id: String
     let tools: [String: String]
+    let timestamp: String
+}
+
+struct ToolPublishEntry: Codable {
+    let id: String
+    let version: String
     let timestamp: String
 }
 

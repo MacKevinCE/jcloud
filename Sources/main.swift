@@ -17,9 +17,6 @@ func printUsage() {
       jcloud channel slot-get <slot>        Get slot value from channel
       jcloud channel slot-set <slot> <id>   Set slot value in channel
 
-      jcloud publish <tool1> [tool2] ...    Upload binaries to channel
-      jcloud update                         Download and install updated binaries
-
       jcloud backup [file]                  Export channel data to file (default: stdout)
       jcloud restore <file>                 Import channel data from file
 
@@ -244,13 +241,12 @@ do {
         }
 
     case "publish":
-        guard !args.isEmpty else {
-            throw JCloudError.missingArgument("Usage: jcloud publish <tool1> [tool2] ...")
-        }
-        try PublishCommand.run(tools: Array(args))
+        fputs("publish has moved to seed. Run: seed publish <tool1> [tool2] ...\n", stderr)
+        exit(1)
 
     case "update":
-        try UpdateCommand.run()
+        fputs("update has moved to seed. Run: seed update\n", stderr)
+        exit(1)
 
     case "backup":
         let channel = try Channel.readRemote()

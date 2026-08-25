@@ -169,9 +169,43 @@ do {
         }
         switch args[0] {
         case "create":
-            let id = try Channel.create()
-            print("Channel created: \(id)")
-            print("Saved to ~/.config/b2c-gsync/channel")
+            let interactive = args.contains("--interactive")
+            let reply = flagValue("--reply", in: args)
+
+            if interactive {
+                if let reply {
+                    // Phase 2: complete with user's answer
+                    if reply == "replace" {
+                        let id = try Channel.create()
+                        InteractiveProtocol.outputDone(message: "Channel created: \(id)")
+                    } else {
+                        InteractiveProtocol.outputDone(message: "Cancelled")
+                    }
+                } else {
+                    // Phase 1: check state, return prompt or done
+                    if let existing = Channel.readLocal() {
+                        let taskId = UUID().uuidString
+                        InteractiveProtocol.saveCache(taskId: taskId, data: ["existing": existing])
+                        InteractiveProtocol.outputPrompt(
+                            taskId: taskId,
+                            title: "Channel exists: \(existing)",
+                            type: "select",
+                            options: [
+                                .init(value: "replace", label: "Yes, replace it"),
+                                .init(value: "keep", label: "No, keep current"),
+                            ]
+                        )
+                    } else {
+                        let id = try Channel.create()
+                        InteractiveProtocol.outputDone(message: "Channel created: \(id)")
+                    }
+                }
+            } else {
+                // Direct mode (no --interactive)
+                let id = try Channel.create()
+                print("Channel created: \(id)")
+                print("Saved to ~/.config/b2c-gsync/channel")
+            }
 
         case "set":
             guard args.count >= 2 else {
@@ -188,8 +222,38 @@ do {
             }
 
         case "clear":
-            try Channel.clearLocal()
-            print("Channel cleared.")
+            let interactive = args.contains("--interactive")
+            let reply = flagValue("--reply", in: args)
+
+            if interactive {
+                if let reply {
+                    if reply == "clear" {
+                        try Channel.clearLocal()
+                        InteractiveProtocol.outputDone(message: "Channel cleared")
+                    } else {
+                        InteractiveProtocol.outputDone(message: "Cancelled")
+                    }
+                } else {
+                    if let existing = Channel.readLocal() {
+                        let taskId = UUID().uuidString
+                        InteractiveProtocol.saveCache(taskId: taskId, data: ["existing": existing])
+                        InteractiveProtocol.outputPrompt(
+                            taskId: taskId,
+                            title: "Clear channel: \(existing)?",
+                            type: "select",
+                            options: [
+                                .init(value: "clear", label: "Yes, clear it"),
+                                .init(value: "keep", label: "No, keep it"),
+                            ]
+                        )
+                    } else {
+                        InteractiveProtocol.outputDone(message: "No channel configured")
+                    }
+                }
+            } else {
+                try Channel.clearLocal()
+                print("Channel cleared.")
+            }
 
         case "slot-get":
             guard args.count >= 2 else {
